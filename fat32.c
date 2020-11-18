@@ -14,24 +14,45 @@
 // Contains: Bytes per sector (BPB_BytsPerSec)
 //			 Sectors per cluster (BPB_SecPerClus)
 //			 Reserved region size (BPB_RsvdSecCnt)
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <unistd.h>
+
+typedef struct {
+        int size;
+        char **items;
+} tokenlist;
+
+tokenlist *get_tokens(char *input);
+tokenlist *new_tokenlist(void);
+char *get_input(void);
+void add_token(tokenlist *tokens, char *item);
+void free_tokens(tokenlist *tokens);
 
 int main()
 {
+	char cmd[80];
 	unsigned int bytePerSect, sectPerClust, resSectCount,
 				 numFats, totalSects, FATsize, rootClust;
-	
-	while (tokens->items[0] != "quit")
+
+	while (1)
 	{
-		print("$ ");
+		printf("$ ");
 		char *input = get_input();
 		tokenlist *tokens = get_tokens(input);
+		
+		printf("Token is: %s\n", tokens->items[0]);
+		if(strcmp(tokens->items[0], "quit") == 0)
+			break;
 
 		if(tokens->items[0] == "info")
 		{
 			//do_something();
 			//critical that this is done first. Also correctly.
 		}
-		else if(tokens->items[0] == "size"
+		else if(tokens->items[0] == "size")
 		{
 			if(tokens->size == 2)	//If FILENAME was provided...
 			{
@@ -56,6 +77,9 @@ int main()
 		//...
 		//...
 		//...
+		
+		free(input);
+		free_tokens(tokens);
 	}
 }
 
