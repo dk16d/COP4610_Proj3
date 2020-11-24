@@ -19,13 +19,16 @@
 // File and dir names are within working directory, NO PATHS.
 // STRING is always contained within "".
 // ***************************************************************************
+
+//FAT region begins at 0x4000 (byte number 16384)
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+                                     //Token struct/funcs from proj 1.
 typedef struct {
         int size;
         char **items;
@@ -36,35 +39,34 @@ tokenlist *new_tokenlist(void);
 char *get_input(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
+									 //Proj 3 helper functions!
+unsigned int GetByteOffset(unsigned int N);
+unsigned int GetClustEntry(unsigned int offset);
+unsigned int GetDataOffset(unsigned int N);
+bool EndCluster(unsigned int entry);
+
+unsigned char sectPerClust, numFats;
+unsigned short bytePerSect, resSectCount;
+unsigned int totalSects, FATsize, rootClust;
 
 int main()
 {                                     //Metadata for the boot sector.
-	unsigned char sectPerClust, numFats;
-	unsigned short bytePerSect, resSectCount;
-	unsigned int totalSects, FATsize, rootClust;
-	
-        int filedesc = open("fat32.img", O_RDONLY);
+    int filedesc = open("fat32.img", O_RDONLY);
 	lseek(filedesc, 11, SEEK_SET);    //11 byte offset for BPB_bytsPerSec.
-        read(filedesc, &bytePerSect, 2);  //Read 2 bytes.					
-	
+    read(filedesc, &bytePerSect, 2);  //Read 2 bytes.					
 	lseek(filedesc, 13, SEEK_SET);    //13 byte offset for BPB_bytsPerSec.
-        read(filedesc, &sectPerClust, 1); //read 1 byte for bpb_bytspersec.					
-	
+    read(filedesc, &sectPerClust, 1); //read 1 byte for bpb_bytspersec.					
 	lseek(filedesc, 14, SEEK_SET);    //Same pattern for remaining metadata...
-        read(filedesc, &resSectCount, 2); //BPB_RsvdSecCnt.
-	
+    read(filedesc, &resSectCount, 2); //BPB_RsvdSecCnt.
 	lseek(filedesc, 16, SEEK_SET);    //BPB_NumFATs.
-        read(filedesc, &numFats, 1);
-	
+    read(filedesc, &numFats, 1);
 	lseek(filedesc, 32, SEEK_SET);    //BPB_TotSec32.
-        read(filedesc, &totalSects, 4);		
-	
+    read(filedesc, &totalSects, 4);		
 	lseek(filedesc, 36, SEEK_SET);    //BPB_FATSz32.
-        read(filedesc, &FATsize, 4);	
-	
+    read(filedesc, &FATsize, 4);	
 	lseek(filedesc, 44, SEEK_SET);    //BPB_RootClus.
-        read(filedesc, &rootClust, 4);
-        close(filedesc);
+    read(filedesc, &rootClust, 4);
+    close(filedesc);
 	
 	while (1)						  //Begin main loop for user input.
 	{
@@ -117,6 +119,43 @@ int main()
 	}
 }
 
+unsigned int GetByteOffset(unsigned int N)      //N is cluster N.
+{                                               //FirstFATSect = ressectcount.
+	return (resSectCount * bytePerSect + (N * 4));
+}
+
+unsigned int GetClustEntry(unsigned int offset)
+{
+	unsigned int clustEntry;
+	
+	int file = open("fat32.img", O_RDONLY);
+	lseek(file, offset, SEEK_SET);
+    read(file, &clustEntry, 4);
+	close(file);
+	
+	return clustEntry;
+}
+
+unsigned int GetDataOffset(unsigned int N)
+{
+	unsigned int firstDataSect = resSectCount + (numFats * FATsize);
+	return (firstDataSect + ((N - 2) * sectPerClust));
+}
+
+
+bool EndCluster(unsigned int entry)
+{
+	if((entry <= 268435448 && entry >= 268435454) || entry == 4294967295)
+		return true;
+	else
+		return false;
+}
+
+// void AccessFileContents()
+// {
+	// int offset = GetDataOffset(rootClust) * bytePerSect;
+	
+// }
 
 
 // THE FOLLOWING 5 HELPER FUNCTIONS ARE TAKEN FROM PROJECT 1 TO PROCESS INPUT.
