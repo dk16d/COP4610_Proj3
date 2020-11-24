@@ -1,4 +1,4 @@
-//* ********************** Project 3 - Fat32 Filesystem ***********************
+/* ********************** Project 3 - Fat32 Filesystem ***********************
  * Riley Corey - Darren Kopacz - Dylan Schmidt
  * COP4610 - 11/18/2020 */
 //***************************** Useful Functions *****************************
