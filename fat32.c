@@ -1,23 +1,29 @@
+//* ********************** Project 3 - Fat32 Filesystem ***********************
+ * Riley Corey - Darren Kopacz - Dylan Schmidt
+ * COP4610 - 11/18/2020 */
 //***************************** Useful Functions *****************************
 //int open(const char *path, int oflag, ...);
-//lseek*int fildes, off_t offset, int whence);
+//lseek(int fildes, off_t offset, int whence);
 //ssize_t read(int fildes, void *buf, size_t nbyte);
 //ssize_t write(int fildes, const void *buf, size_t nbyte);
 //int close(int fildes);
+// https://man7.org/linux/man-pages/man2/open.2.html
+// https://www.man7.org/linux/man-pages/man2/lseek.2.html
+// https://man7.org/linux/man-pages/man2/read.2.html
 //**************************** Useful Data Types *****************************
-//unsigned char (8 bits w/o sign)
+//unsigned char  (8 bits w/o sign)
 //unsigned short (16 bits w/o sign)
-//unsigned int (32 bits w/o sign)
-
-//BPB (BIOS Param Block)
-// Located at first sector of volume (reserved region).
-// Contains: Bytes per sector (BPB_BytsPerSec)
-//			 Sectors per cluster (BPB_SecPerClus)
-//			 Reserved region size (BPB_RsvdSecCnt)
+//unsigned int   (32 bits w/o sign)
+// ~~~ ASSUMPTIONS ~~~
+// File and dir names will NOT contain spaces or file extensions.
+// File and dir names are within working directory, NO PATHS.
+// STRING is always contained within "".
+// ***************************************************************************
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 typedef struct {
@@ -32,27 +38,55 @@ void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 
 int main()
-{
-	char cmd[80];
-	unsigned int bytePerSect, sectPerClust, resSectCount,
-				 numFats, totalSects, FATsize, rootClust;
-
-	while (1)
+{                                     //Metadata for the boot sector.
+	unsigned char sectPerClust, numFats;
+	unsigned short bytePerSect, resSectCount;
+	unsigned int totalSects, FATsize, rootClust;
+	
+        int filedesc = open("fat32.img", O_RDONLY);
+	lseek(filedesc, 11, SEEK_SET);    //11 byte offset for BPB_bytsPerSec.
+        read(filedesc, &bytePerSect, 2);  //Read 2 bytes.					
+	
+	lseek(filedesc, 13, SEEK_SET);    //13 byte offset for BPB_bytsPerSec.
+        read(filedesc, &sectPerClust, 1); //read 1 byte for bpb_bytspersec.					
+	
+	lseek(filedesc, 14, SEEK_SET);    //Same pattern for remaining metadata...
+        read(filedesc, &resSectCount, 2); //BPB_RsvdSecCnt.
+	
+	lseek(filedesc, 16, SEEK_SET);    //BPB_NumFATs.
+        read(filedesc, &numFats, 1);
+	
+	lseek(filedesc, 32, SEEK_SET);    //BPB_TotSec32.
+        read(filedesc, &totalSects, 4);		
+	
+	lseek(filedesc, 36, SEEK_SET);    //BPB_FATSz32.
+        read(filedesc, &FATsize, 4);	
+	
+	lseek(filedesc, 44, SEEK_SET);    //BPB_RootClus.
+        read(filedesc, &rootClust, 4);
+        close(filedesc);
+	
+	while (1)						  //Begin main loop for user input.
 	{
 		printf("$ ");
-		char *input = get_input();
+		char *input = get_input();	  //Tokenize user input.
 		tokenlist *tokens = get_tokens(input);
+		//printf("Token is: %s\n", tokens->items[0]);
 		
-		printf("Token is: %s\n", tokens->items[0]);
 		if(strcmp(tokens->items[0], "quit") == 0)
-			break;
+			break;                    //Exit program on "quit".
 
-		if(tokens->items[0] == "info")
-		{
-			//do_something();
-			//critical that this is done first. Also correctly.
+		if(strcmp(tokens->items[0], "info") == 0)
+		{                             //Print metadata collected at start.
+			printf("bytePerSect: %u\n", bytePerSect);
+			printf("sectPerClust: %u\n", sectPerClust);
+			printf("resSectCount: %u\n", resSectCount);
+			printf("numFats: %u\n", numFats);
+			printf("totalSects: %u\n", totalSects);
+			printf("FATsize: %u\n", FATsize);
+			printf("rootClust: %u\n", rootClust);
 		}
-		else if(tokens->items[0] == "size")
+		else if(strcmp(tokens->items[0], "size") == 0)
 		{
 			if(tokens->size == 2)	//If FILENAME was provided...
 			{
@@ -63,7 +97,7 @@ int main()
 				//Print error.
 			}
 		}
-		else if(tokens->items[0] == "ls")
+		else if(strcmp(tokens->items[0], "ls") == 0)
 		{							// If a DIRNAME was given...
 			if(tokens->size == 2)
 			{
@@ -83,6 +117,10 @@ int main()
 	}
 }
 
+
+
+// THE FOLLOWING 5 HELPER FUNCTIONS ARE TAKEN FROM PROJECT 1 TO PROCESS INPUT.
+// ---------------------------------------------------------------------------
 tokenlist *new_tokenlist(void)
 {
    tokenlist *tokens = (tokenlist *) malloc(sizeof(tokenlist));
