@@ -10,6 +10,7 @@
 // https://man7.org/linux/man-pages/man2/open.2.html
 // https://www.man7.org/linux/man-pages/man2/lseek.2.html
 // https://man7.org/linux/man-pages/man2/read.2.html
+// https://linux.die.net/man/1/hexedit
 //**************************** Useful Data Types *****************************
 //unsigned char  (8 bits w/o sign)
 //unsigned short (16 bits w/o sign)
@@ -40,7 +41,7 @@ char *get_input(void);
 void add_token(tokenlist *tokens, char *item);
 void free_tokens(tokenlist *tokens);
 									 //Proj 3 helper functions!
-unsigned int GetByteOffset(unsigned int N);
+unsigned int GetFATOffset(unsigned int N);
 unsigned int GetClustEntry(unsigned int offset);
 unsigned int GetDataOffset(unsigned int N);
 bool EndCluster(unsigned int entry);
@@ -67,6 +68,9 @@ int main()
 	lseek(filedesc, 44, SEEK_SET);    //BPB_RootClus.
     read(filedesc, &rootClust, 4);
     close(filedesc);
+	
+	unsigned int byteOffset = GetDataOffset(rootClust) * 512;
+	printf("Temporary... Start of data region (Decimal): %u\n", byteOffset);
 	
 	while (1)						  //Begin main loop for user input.
 	{
@@ -119,7 +123,7 @@ int main()
 	}
 }
 
-unsigned int GetByteOffset(unsigned int N)      //N is cluster N.
+unsigned int GetFATOffset(unsigned int N)      //N is cluster N.
 {                                               //FirstFATSect = ressectcount.
 	return (resSectCount * bytePerSect + (N * 4));
 }
@@ -129,7 +133,7 @@ unsigned int GetClustEntry(unsigned int offset)
 	unsigned int clustEntry;
 	
 	int file = open("fat32.img", O_RDONLY);
-	lseek(file, offset, SEEK_SET);
+	lseek(file, offset, SEEK_CUR);	//Changed from SET to CUR (watch closely)!
     read(file, &clustEntry, 4);
 	close(file);
 	
@@ -137,11 +141,10 @@ unsigned int GetClustEntry(unsigned int offset)
 }
 
 unsigned int GetDataOffset(unsigned int N)
-{
+{											//RETURNS SECTOR NUMBER.
 	unsigned int firstDataSect = resSectCount + (numFats * FATsize);
 	return (firstDataSect + ((N - 2) * sectPerClust));
 }
-
 
 bool EndCluster(unsigned int entry)
 {
@@ -153,8 +156,12 @@ bool EndCluster(unsigned int entry)
 
 // void AccessFileContents()
 // {
-	// int offset = GetDataOffset(rootClust) * bytePerSect;
-	
+	// unsigned int offset = GetDataOffset(rootClust) * bytePerSect;
+	// while(!EndCluster(GetClustEntry(offset))
+	// {
+	//	offset = newvalue  (((update offset)))
+	// }	// 2 similar functions/loops? FATOfsset vs DataOffset????
+
 // }
 
 
