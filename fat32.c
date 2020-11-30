@@ -45,6 +45,7 @@ unsigned int GetFATOffset(unsigned int N);
 unsigned int GetClustEntry(unsigned int offset);
 unsigned int GetDataOffset(unsigned int N);
 bool EndCluster(unsigned int entry);
+struct DIRENTRY * GetDirectoryEntries(unsigned int N);
 
 unsigned char sectPerClust, numFats;
 unsigned short bytePerSect, resSectCount;
@@ -105,9 +106,77 @@ int main()
 		}
 		else if(strcmp(tokens->items[0], "ls") == 0)
 		{							// If a DIRNAME was given...
-			if(tokens->size == 2)
-			{
-				
+			//The first sector of the beginning of the data region (cluster #2) is computed as given below:
+                        //FirstDataSector = BPB_ResvdSecCnt + (BPB_NumFATs * FATSz)  + RootDirSectors                                   // If a DIRNAME was given...
+                        unsigned short firstdata = resSectCount + (numFats * FATsize);
+                        unsigned long bytesperclust = bytePerSect * sectPerClust;
+                        unsigned long sizeofclust = bytesperclust / 32;
+                        struct DIRENTRY mydirentry;
+                        if(tokens->size == 2)
+                        {
+                                lseek(filedesc, firstdata * bytesperclust, SEEK_SET);   //started from root cluster but this needs to be whatever the current cluster is
+                                char mystring[] = "";
+                                while (1)
+                                {
+                                        read(filedesc, &mydirentry, 32);
+                                        printf("token is: %s\n", tokens->items[1]);
+                                        for (int i = 0; i < 11; i++)
+                                        {
+                                                strncat(mystring, &mydirentry.DIR_Name[i], 1);  //making dirname into string for comparison
+                                        }
+                                        printf("mystring: %s\n", mystring);
+
+                                        if (strncmp(mystring, tokens->items[1], sizeof(mystring)) != 0) //if doesn't match, reset string
+                                                mystring[0] = 0;
+                                        else
+                                            	break;  //we found the match!
+                                }
+
+                                //if they match, that is the structure we are looking for
+                                //combine DIR_FstClusHI and DIR_FstClusLO
+                                printf("high: %x\n", mydirentry.DIR_FstClusHI);
+                                printf("low: %x\n", mydirentry.DIR_FstClusLO);
+
+                                        char * high_string = malloc(128);
+                                        snprintf(high_string, 128, "%x", mydirentry.DIR_FstClusHI);     //making hex string for hi
+
+                                        char * low_string = malloc(128);
+                                        snprintf(low_string, 128, "%x", mydirentry.DIR_FstClusLO);	//making hex string for lo
+
+                                        strcat(high_string,low_string);                                 //combining hex strings for hi and lo
+                                        printf("combined is: %s\n", high_string);
+
+                                //now we have the first cluster of DIRNAME
+                                long x;
+                                char *ptr;
+                                x = strtol(high_string, &ptr, 16);                                      //converting hex string to hex
+                                printf("cluster entry is: %ld\n", x);                                   //printing decimal value of hex value
+
+                                //get offset for DIRNAME's first cluster and read entries
+                                        printf("offset is: %d\n", GetClustEntry(x));                    //go to sector of hi+lo
+                                        lseek(filedesc, GetDataOffset(x), SEEK_SET);
+                                        char myname[] = "";                                             //new holder for names
+                                while (1)
+                                {
+                                        read(filedesc, &mydirentry, 32);                                //start reading in directory entries
+                                        printf("dirname[o] is: 0x%02x\n", mydirentry.DIR_Name[0]);
+                                        if (mydirentry.DIR_Name[0] == 0x0)
+                                                break;
+                                        else if (mydirentry.DIR_Name[0] == 0xE5)
+                                                break;
+                                        else                                                                    //it it an entrie to read in
+                                        {
+                                                for (int i = 0; i < 11; i++)
+                                                {
+                                                        strncat(myname, &mydirentry.DIR_Name[i], 1);
+                                                }
+                                                printf("myname: %s\n", myname);                                 //print name of entry
+                                                myname[0] = 0;                                                  //reset string for new one
+                                        }
+
+                                }
+                                //if you reach end of cluster, get next cluster from FAT and continue reading if any
+                                //we need another loop
 			}
 			else					//Else, just execute "ls".
 			{
@@ -121,6 +190,45 @@ int main()
 		free(input);
 		free_tokens(tokens);
 	}
+}
+struct DIRENTRY * GetDirectoryEntries(unsigned int N)
+{
+        struct DIRENTRY mydirentry;
+        unsigned int holdclustnum = N;
+        unsigned long bytesperclust = bytePerSect * sectPerClust;
+        unsigned long sizeofclust = bytesperclust / 32;
+        char mystring[] = "";
+        do{
+           	unsigned int contents = GetDataOffset(holdclustnum);
+                int count = 0;
+                lseek(filedesc, contents, SEEK_SET);
+                while(1)
+                {
+                        read(filedesc, &mydirentry, 32);
+                        if (mydirentry.DIR_Name[0] == 0x00)
+                                break;
+                        else if (count < sizeofclust)
+                                break;
+                        else
+                        {
+                                count++;
+
+                                printf("token is: %s\n", tokens->items[1]);
+                                for (int i = 0; i < 11; i++)
+                                {
+                                        strncat(mystring, &mydirentry.DIR_Name[i], 1);
+                                }
+                                printf("mystring: %s\n", mystring);
+
+                                if (strncmp(mystring, tokens->items[1], sizeof(mystring)) != 0)
+                                        mystring[0] = 0;
+                                else
+                                    	break;
+                        }
+                }
+                holdclustnum = nextCluster(holdclustnum);
+        }while(holdclustnum<0x0FFFFFF8);
+        return mydirentry;
 }
 
 unsigned int GetFATOffset(unsigned int N)      //N is cluster N.
