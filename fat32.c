@@ -153,8 +153,8 @@ int main()
                                 printf("cluster entry is: %ld\n", x);                                   //printing decimal value of hex value
 
                                 //get offset for DIRNAME's first cluster and read entries
-                                        printf("offset is: %d\n", GetClustEntry(x));                    //go to sector of hi+lo
-                                        lseek(filedesc, GetDataOffset(x), SEEK_SET);
+                                        printf("offset is: %d\n", GetDataOffset(x));                    //go to sector of hi+lo
+                                        lseek(filedesc, GetDataOffset(x), SEEK_SET);			//IS THIS MY PROBLEM? 
                                         char myname[] = "";                                             //new holder for names
                                 while (1)
                                 {
