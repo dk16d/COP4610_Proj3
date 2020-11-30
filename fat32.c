@@ -61,6 +61,7 @@ bool EndCluster(unsigned int entry);
 unsigned int ThisFATSecNum(unsigned int N);
 unsigned int ThisFATEntOffset(unsigned int N);
 unsigned int nextCluster(unsigned int N);
+struct DIRENTRY GetDirectoryEntries(unsigned int N);
 
         unsigned char sectPerClust, numFats;
         unsigned short bytePerSect, resSectCount;
