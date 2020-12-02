@@ -69,9 +69,9 @@ struct DIRENTRY GetDirectoryEntries(unsigned int N);
         int filedesc;
         tokenlist *tokens;
 
-int main()
+int main(int argc, char *argv[])
 {
-        filedesc = open("fat32.img", O_RDONLY);
+        filedesc = open(argv[1], O_RDONLY);
         lseek(filedesc, 11, SEEK_SET);    //11 byte offset for BPB_bytsPerSec.
         read(filedesc, &bytePerSect, 2);  //Read 2 bytes.
 
