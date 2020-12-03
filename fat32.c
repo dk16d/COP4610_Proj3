@@ -101,8 +101,11 @@ int main(int argc, char *argv[])
                 tokens = get_tokens(input);
                 //printf("Token is: %s\n", tokens->items[0]);
 
-                if(strcmp(tokens->items[0], "quit") == 0)
-                        break;                    //Exit program on "quit".
+                if(strcmp(tokens->items[0], "quit") == 0)//Exit program on "quit".
+		{
+			close(filedesc);
+                        break;
+		}
 
                 if(strcmp(tokens->items[0], "info") == 0)
                 {                             //Print metadata collected at start.
