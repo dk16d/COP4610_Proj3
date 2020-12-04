@@ -68,9 +68,28 @@ struct DIRENTRY GetDirectoryEntries(unsigned int N);
         unsigned int totalSects, FATsize, rootClust;
         int filedesc;
         tokenlist *tokens;
-
+									 //These 3 vars are for open/close cmds.
+		unsigned int currDirOffset;  //byte offset of current working directory.
+		const unsigned int maxOpenFiles = 256;
+		unsigned int numOpenFiles = 0;	//total num of current files open^!!!
+		
+		struct OpenFile
+		{
+			unsigned int firstCluster;
+			unsigned int byteOffset;
+			char mode[4];
+		};
+		
 int main(int argc, char *argv[])
 {
+	unsigned char ATTR_READ_ONLY = 0x01;	//attributes for long name mask
+	unsigned char ATTR_HIDDEN = 0x02;
+	unsigned char ATTR_SYSTEM = 0x04;
+	unsigned char ATTR_VOLUME_ID = 0x08;
+	unsigned char ATTR_LONG_NAME = (ATTR_READ_ONLY | ATTR_HIDDEN |ATTR_SYSTEM | ATTR_VOLUME_ID);
+	
+	struct OpenFile openFileList[maxOpenFiles];
+	
         filedesc = open(argv[1], O_RDONLY);
         lseek(filedesc, 11, SEEK_SET);    //11 byte offset for BPB_bytsPerSec.
         read(filedesc, &bytePerSect, 2);  //Read 2 bytes.
@@ -101,10 +120,10 @@ int main(int argc, char *argv[])
                 tokens = get_tokens(input);
                 //printf("Token is: %s\n", tokens->items[0]);
 
-                if(strcmp(tokens->items[0], "quit") == 0)
+		if(strcmp(tokens->items[0], "quit") == 0)
 		{
 			close(filedesc);
-                        break;                    //Exit program on "quit".
+			break;                    //Exit program on "quit".
 		}
                 if(strcmp(tokens->items[0], "info") == 0)
                 {                             //Print metadata collected at start.
@@ -124,54 +143,49 @@ int main(int argc, char *argv[])
                         unsigned long bytesperclust = bytePerSect * sectPerClust;
                         unsigned long sizeofclust = bytesperclust / 32;
                         struct DIRENTRY mydirentry;	//to store directory infomation 
-                                int flag = 0;
-                                lseek(filedesc, firstdata * bytesperclust, SEEK_SET);   //started from root cluster but this needs to be whatever the current cluster is
-                                char mystring[] = "";					//string to hold directory names
-                                while (1)
-                                {
-                                        read(filedesc, &mydirentry, 32);		//read first 32 bytes into mydirentry struct
-                                        unsigned char ATTR_READ_ONLY = 0x01;		//attributes for long name mask
-                                        unsigned char ATTR_HIDDEN = 0x02;
-                                        unsigned char ATTR_SYSTEM = 0x04;
-                                        unsigned char ATTR_VOLUME_ID = 0x08;
-                                        unsigned char ATTR_LONG_NAME = (ATTR_READ_ONLY | ATTR_HIDDEN |ATTR_SYSTEM | ATTR_VOLUME_ID);
+						int flag = 0;
+						lseek(filedesc, firstdata * bytesperclust, SEEK_SET);   //started from root cluster but this needs to be whatever the current cluster is
+						char mystring[] = "";					//string to hold directory names
+						while (1)
+						{
+							read(filedesc, &mydirentry, 32);		//read first 32 bytes into mydirentry struct
 
-                                        if (mydirentry.DIR_Name[0] == 0x20)     	//name starts with a space
-                                        {
-                                                //do nothing
-                                        }
-                                        else if (mydirentry.DIR_Attr == ATTR_LONG_NAME)	//file is a longname file
-                                        {
-                                                //do nothing
-                                        }
-                                        else if (mydirentry.DIR_Name[0] == 0x0)		//0x00  also  indicates  the  directory  entry  is  free and all after
-                                                break;
-                                        else if (mydirentry.DIR_Name[0] == 0x05)	//0x05 represented E5 - indicates the directory entry is free 
-                                                break;
-					else if (mydirentry.DIR_Name[0] == 0xE5)	//0xE5 indicates the directory entry is free 
-                                                break;
-                                        else 						//print it - it is an actual directory
-                                        {
-                                                printf("token is: %s\n", tokens->items[1]);
-                                                for (int i = 0; i < 11; i++)
-                                                {
-                                                        strncat(mystring, &mydirentry.DIR_Name[i], 1); 	//making dirname into string for comparison
-                                                }
-                                                printf("mystring: %s\n", mystring);
+							if (mydirentry.DIR_Name[0] == 0x20)     	//name starts with a space
+							{
+									//do nothing
+							}
+							else if (mydirentry.DIR_Attr == ATTR_LONG_NAME)	//file is a longname file
+							{
+									//do nothing
+							}
+							else if (mydirentry.DIR_Name[0] == 0x0)		//0x00  also  indicates  the  directory  entry  is  free and all after
+									break;
+							else if (mydirentry.DIR_Name[0] == 0x05)	//0x05 represented E5 - indicates the directory entry is free 
+									break;
+							else if (mydirentry.DIR_Name[0] == 0xE5)	//0xE5 indicates the directory entry is free 
+									break;
+							else 						//print it - it is an actual directory
+							{
+								printf("token is: %s\n", tokens->items[1]);
+								for (int i = 0; i < 11; i++)
+								{
+									strncat(mystring, &mydirentry.DIR_Name[i], 1); 	//making dirname into string for comparison
+								}
+								printf("mystring: %s\n", mystring);
 
-                                                if (strncmp(mystring, tokens->items[1], sizeof(mystring)) != 0) //if doesn't match, reset string
-                                                        mystring[0] = 0;
-                                                else{
-                                                     	printf("the file is %u bytes\n", mydirentry.DIR_FileSize); //if file is found; print size
-                                                        flag = 1;	//file found
-                                                        break;
-                                                }
-                                        }
-                                }
+								if (strncmp(mystring, tokens->items[1], sizeof(mystring)) != 0) //if doesn't match, reset string
+									mystring[0] = 0;
+								else{
+									printf("the file is %u bytes\n", mydirentry.DIR_FileSize); //if file is found; print size
+									flag = 1;	//file found
+									break;
+								}
+							}
+						}
 
-                                if (flag == 0)	//reached the end and the file was not found
-                                        printf("Error: file does not exist\n");
-                        }
+						if (flag == 0)	//reached the end and the file was not found
+							printf("Error: file does not exist\n");
+					}
                         else                                    //Else, print error...
                         {
                                 //Print error.
@@ -197,30 +211,24 @@ int main(int argc, char *argv[])
                                 char mystring[] = "";
                                 while (1)
                                 {
-                                        read(filedesc, &mydirentry, 32);	//reading into DIRENTRY struct from file
-                                        unsigned char ATTR_READ_ONLY = 0x01;	//attributes for long name mask
-                                        unsigned char ATTR_HIDDEN = 0x02;
-                                        unsigned char ATTR_SYSTEM = 0x04;
-                                        unsigned char ATTR_VOLUME_ID = 0x08;
-                                        unsigned char ATTR_LONG_NAME = (ATTR_READ_ONLY | ATTR_HIDDEN |ATTR_SYSTEM | ATTR_VOLUME_ID);
-
-                                        //if (mydirentry.DIR_Name & 0x0F)
-                                        //{
-                                           	//do nothing
-                                        //}
-                                        if (mydirentry.DIR_Name[0] == 0x20)     //name starts with a space
-                                        {
-                                                //do nothing
-                                        }
-                                        else if (mydirentry.DIR_Attr == ATTR_LONG_NAME)	//file is a long file 
-                                        {
-                                                //do nothing
-                                        }
-                                        else if (mydirentry.DIR_Name[0] == 0x0)		//file is free & the ones after
-                                                break;
-                                        else if (mydirentry.DIR_Name[0] == 0x05)	//file is available & free
-                                                break;	
-					else if (mydirentry.DIR_Name[0] == 0xE5)	//0xE5 indicates the directory entry is free 
+									read(filedesc, &mydirentry, 32);	//reading into DIRENTRY struct from file
+									//if (mydirentry.DIR_Name & 0x0F)
+									//{
+										//do nothing
+									//}
+									if (mydirentry.DIR_Name[0] == 0x20)     //name starts with a space
+									{
+											//do nothing
+									}
+									else if (mydirentry.DIR_Attr == ATTR_LONG_NAME)	//file is a long file 
+									{
+											//do nothing
+									}
+									else if (mydirentry.DIR_Name[0] == 0x0)		//file is free & the ones after
+											break;
+									else if (mydirentry.DIR_Name[0] == 0x05)	//file is available & free
+											break;	
+									else if (mydirentry.DIR_Name[0] == 0xE5)	//0xE5 indicates the directory entry is free 
                                                 break;
                                         else						//file is what we are looking for, find the matching name to DIRNAME
                                         {
@@ -331,7 +339,95 @@ int main(int argc, char *argv[])
                         }
 
                 }//end ls
-
+				else if(strcmp(tokens->items[0], "open") == 0)
+				{
+					// if(tokens->size == 3)		//If given expected cmd input.
+					// {	unsigned int fileOffset;
+						// bool isFound = false;
+						// bool isOpen = false;    //Assume the file is not open.
+						// unsigned char ATTR_DIRECTORY = 0x10;
+						// unsigned char ATTR_READ_ONLY = 0x01;
+						// unsigned char masked;
+						//Get DIRENTRYs like in ls...
+						//for entries in DIRENTRYs
+							//If(strncmp(FILENAME, DIR_name) == 0)
+								//isFound == true;
+						//if(isFound)
+						//{						//Apply mask to see if dir bit set.
+							//masked = DIR_Attr << 3;
+							//masked = masked >> 7;
+							//masked = masked << 4;
+							//if(masked == ATTR_DIRECTORY)
+								//printf("Error! Can only open files\n");
+							//else
+							//{
+								//masked = DIR_Attr << 7;
+								//masked = masked >> 7;
+								//if(masked == ATTR_READ_ONLY && strcmp(tokens->items[2], "r") != 0)
+									//printf("Error, read-only file!\n");
+								//else						//Otherwise, check if already open.
+								//{
+									// int i = 0;
+									// for(i=0; i < maxOpenFiles; i++)
+									// if(firstClust == openFileList[i].firstClust)
+									// {					//If file is already open...
+										// printf("file is already open\n");
+										// isOpen = true;	//Set flag, end command here.
+										// break;
+									// }
+									// else
+									// {
+										// struct OpenFile opfi;
+										// //READ IN FIRST CLUSTER/MODE/OFFSET
+										// Add to structure.
+									// }
+								//}
+									
+							//}
+						//}
+						//else
+							//printf("No DIRENTRY...\n");
+						
+						//below is not yet added in proper order.
+						// if(!isOpen)				//If file is not open yet...
+						// {
+							// if(strcmp(tokens->items[2], "r"))
+								// //open(***FILENAME***, O_RDONLY);
+							// if(strcmp(tokens->items[2], "w"))
+								// //open(***PUTTHEFILENAMEHERE***, O_WRONLY);
+							// if(strcmp(tokens->items[2], "rw") || strcmp(tokens->items[2], "wr"))
+								// //open(***PUTTHEFILENAMEHERE***, O_RDWR);
+							
+							// openFileList[numOpenFiles] = offset;
+							// numOpenFiles++;		//Add to list of open files.
+						// }
+					// }
+					// else
+						// printf("Wrong number of arguments.\n");
+				}
+				else if(strcmp(tokens->items[0], "close") == 0)
+				{
+					// unsigned int fileOffset;
+					
+					// if(tokens->size == 2)		//If given expected cmd input.
+					// {
+						// if(close(FILENAMEHERE) == 0)
+						// {
+							// int i = 0;
+							// for(i=0; i < maxOpenFiles; i++)
+								// if(fileoffset == openFileList[i])
+								// {					//If file is already open...
+									// printf("file is already open");
+									// isOpen = true;	//Set flag, end command here.
+									// break;
+								// }
+						// }
+						// else
+							// printf("File not found.\n");
+					// }
+					// else
+						// printf("No filename given.\n");
+				}
                 //...
                 //...
                 //...
