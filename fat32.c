@@ -1,5 +1,6 @@
- * Riley Corey - Darren Kopacz - Dylan Schmidt
- * COP4610 - 11/18/2020 */
+/* ********************** Project 3 - Fat32 Filesystem ***********************
+* Riley Corey - Darren Kopacz - Dylan Schmidt
+* COP4610 - 11/18/2020 */
 //***************************** Useful Functions *****************************
 //int open(const char *path, int oflag, ...);
 //lseek(int fildes, off_t offset, int whence);
